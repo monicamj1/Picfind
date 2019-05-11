@@ -1,8 +1,6 @@
-
 import React, { Component } from 'react';
 import { Platform, StyleSheet, Text, View, FlatList, Image, TouchableHighlight, Button, ScrollView } from 'react-native';
 import { TouchableOpacity } from 'react-native-gesture-handler';
-import { whileStatement } from '@babel/types';
 import Dialog, {
   DialogTitle,
   DialogContent,
@@ -11,121 +9,69 @@ import Dialog, {
   SlideAnimation,
   ScaleAnimation,
 } from 'react-native-popup-dialog';
-import ImagePicker from 'react-native-image-picker';
+import RNFS from 'react-native-fs';
+import DirectoryPickerManager from 'react-native-directory-picker';
+import Results from './Results.js'
 
-/*
-COSAS IMPORTANTES: Necesitamos un modo de elegir un directorio del móvil y guardar el path. De momento hay que seguir buscando porque 
-no hemos encontrado cómo.
-Necesitamos convertir imágenes a base64 para poder trabajar prácticamente con todo. No funciona con imágenes de las propias carpetas de React, sólo del dispositivo.
-No conseguimos acceder a grupos de imágenes del dispositivo.
-El fs podremos usarlo tras resolver lo anterior.
-*/
 
-const imagePickerOptions = {
-  title: 'Selecciona una carpeta'
-}
+
 
 
 export default class Home extends Component {
   state = {
-    filters: [
-      { id: 0, name: "Caras", selected: true },
-      { id: 1, name: "Borrosas", selected: true },
+    filterList: [
+      { id: 0, name: "Caras", results: 28, selected: true },
+      { id: 1, name: "Borrosas", results: 13, selected: true },
     ],
-    folders: [
-      { id: 0, name: "Todas las carpetas", selected: true },
-      { id: 1, name: "ReactImg", selected: true },
-      // { id: 1, name: "Cámara", selected: true },
-      // { id: 2, name: "Twitter", selected: true },
-
-    ],
-    folder: [{ id: null, name: null }],
-    options: [{ filt: null, folder: null }],
-    defaultAnimationDialog: false,
+    folderName: null,
+    selectedFolder: null,
+    selectedFilter: null,
+    showFilters: false,
+    showPics: false,
+    analysis: 100,
   }
 
-  //BARRA DE NAVEGACIÓN SUPERIOR
+
+
+  ///////////////////////////////////////////////////////////////////////////////////////// BARRA DE NAVEGACIÓN SUPERIOR
   static navigationOptions = {
     title: 'Picfind',
     headerTitleStyle: {
       textAlign: "center",
       flex: 1,
-      marginTop: -50,
     },
     headerTintColor: 'white',
     headerStyle: {
       backgroundColor: '#45D9B4',
-      elevation: 0,
-      height: 100,
+      elevation: 2,
     },
   };
 
 
 
-  //IMPRIME LISTA DE CARPETAS EN EL DIALOG
-  renderItemFolders = ({ item }) => (
-    <TouchableOpacity style={styles.itemFolder}
-      activeOpacity={0.2}
-      onPress={this.changeSelectedFolder(item.id)}
-    >
-      <Image source={require('./assets/icono_carpeta.png')} style={styles.itemPic} />
-      <Text style={styles.itemName}>{item.name}</Text>
-    </TouchableOpacity>
-  )
-
-  //TODO: Elegir un directorio de los que ya hay en el dispositivo y guardar el path del mismo
-  /*
-  openPopUp = () => {
-    ImagePicker.showImagePicker(imagePickerOptions, (response) => {
-      console.log('Response = ', response);
-      if (response.didCancel) {
-        console.log('User cancelled image picker');
-      } else if (response.error) {
-        console.log('ImagePicker Error: ', response.error);
-      } else if (response.customButton) {
-        console.log('User tapped custom button: ', response.customButton);
-      } else {
-        const source = { uri: response.uri }
-      }
-    });
-}
-*/
-  
-    //ABRIR DIALOG
-    openPopUp = () => {
-      this.setState({
-        defaultAnimationDialog: true,
-      });
-    }
-  
-
-  /*Directory picker NO FUNCIONA, PERO ALGO ASÍ
-  openPopUp = () => {
+  //////////////////////////////////////////////////////////////////////////////////////// DIRECTORY PICKER
+  selectFolder = () => {
     DirectoryPickerManager.showDirectoryPicker(null, (response) => {
-      console.log('Response = ', response);
-      alert(response.path);
-    
       if (response.didCancel) {
         console.log('User cancelled directory picker');
       }
       else if (response.error) {
         console.log('DirectoryPickerManager Error: ', response.error);
       }
+      else {
+        console.log('Response = ', response);
+        this.setState({
+          selectedFolder: response.dirname,
+          folderName: response.dirname,
+          showFilters: true,
+        });
+      }
     });
-  }*/
-
-
-  //SELECCIONAR CARPETA (SIMULADO)
-  changeSelectedFolder = (id) => () => {
-    this.setState({ defaultAnimationDialog: false });
-    this.state.folder.id = id;
-    this.state.folder.name = this.state.folders[id].name;
-    this.state.options.folder = id;
   }
 
 
 
-  //IMPRIME LISTA DE FILTROS
+  //////////////////////////////////////////////////////////////////////////////////////// IMPRIME LISTA DE FILTROS
   renderItemFilter = ({ item }) => (
     <TouchableOpacity style={(item.selected ? styles.item : styles.itemSelected)}
       activeOpacity={0.2}
@@ -133,106 +79,134 @@ export default class Home extends Component {
     >
       <Image source={(item.selected ? require('./assets/icono_filtro.png') : require('./assets/icono_filtro_sel.png'))} style={styles.itemPic} />
       <Text style={(item.selected ? styles.itemName : styles.itemNameSelected)}>{item.name}</Text>
+      {this.showProgressFilterFeedback(item.id)}
     </TouchableOpacity>
   )
 
 
 
-  //SELECCIONAR FILTRO
+  //////////////////////////////////////////////////////////////////////////////////////// SELECCIONAR FILTRO
   changeSelected = (id) => () => {
     this.setState(prevState => ({
-      filters: prevState.filters.map((filter, i) => (i === id
+      filterList: prevState.filterList.map((filter, i) => (i === id
         ? { ...filter, selected: !filter.selected }
-        : { ...filter, selected: true }))
+        : { ...filter, selected: true })),
+      selectedFilter: id,
     }));
-    this.state.options.filt = id;
   }
 
 
 
-  //ONCLICK DEL BOTÓN DE BUSCAR
-  clickBtn = (options) => {
-    const { navigation } = this.props;
-    let selectedFilter = options.filt;
-    let selectedFolder = options.folder;
-    navigation.navigate(
-      'results',
-      { filter: selectedFilter },
-      { folder: selectedFolder }
-    );
-
+  //////////////////////////////////////////////////////////////////////////////////////// ONCLICK DEL BOTÓN DE MOSTRAR RESULTADOS
+  clickBtn = () => {
+    alert('llevar a resultados');
+    this.setState({
+      showPics: true
+    })
+    //TODO: Scroll a los resultados
   }
 
 
-  //MOSTRAR BUTTON DE BUSCAR SI SE CUMPLEN LAS CONDICIONES
+
+  //////////////////////////////////////////////////////////////////////////////////////// CAMBIO DE MENSAJE DEL BOTÓN SEGÚN EL ESTADO
   showBtn = () => {
-    if (this.state.options.filt != null && this.state.options.folder != null) {
-      return <View style={styles.searchBtn}>
-        <Button
-          title="Buscar"
-          onPress={() => this.clickBtn(this.state.options)}
-          color="#F05576"
-        />
+    let btnContent = 'Mostrar resultados';
+    let dis = false;
+    if (this.state.selectedFolder == null) {
+      btnContent = 'Selecciona carpeta';
+      dis = true;
+    }
+    else {
+      if (this.state.analysis < 100) {
+        btnContent = 'Espere al análisis';
+        dis = true;
+      }else {
+        if(this.state.selectedFilter == null){
+          btnContent = 'Selecciona un filtro';
+          dis = true;
+        }else{
+        }
+      }
+    }
+    return <View style={styles.searchBtn}>
+      <Button
+        title={btnContent}
+        onPress={() => this.clickBtn()}
+        color="#F05576"
+        disabled={dis}
+      />
+    </View>
+  }
+
+
+
+  //////////////////////////////////////////////////////////////////////////////////////// RENDERIZAR COMPONENTE CON LOS RESULTADOS
+  showResults = () => {
+    if (this.state.showPics == true) {
+      return <Results />
+    }
+  }
+
+
+
+  //////////////////////////////////////////////////////////////////////////////////////// LISTA DE FILTROS
+  showFilters = () => {
+    if (this.state.showFilters == true) {
+      return <View style={styles.listContainer} >
+        <View style={styles.title}>
+          <Text style={styles.titleText}>FILTROS</Text>
+        </View>
+        <FlatList data={this.state.filterList}
+          renderItem={this.renderItemFilter}
+          keyExtractor={(item) => item.id.toString()}
+        ></FlatList>
       </View>
     }
   }
 
 
+
+  //////////////////////////////////////////////////////////////////////////////////////// PROGRESO DE LOS RESULTADOS PARA CADA FILTRO
+  showProgressFilterFeedback = (id) => {
+    return <Text style={styles.filterProgress}>{this.state.filterList[id].results}</Text>;
+  }
+
+
+
+  ///////////////////////////////////////////////////////////////////////////////////// PROGRESO DEL ANÁLISIS DE LA CARPETA
+  showProgressFolderFeedback = () => {
+    if (this.state.selectedFolder != null) {
+      if (this.state.analysis == 100) {
+        return <Text style={[styles.progress, styles.progressCompleted]}>Analizado</Text>;
+      } else {
+        return <Text style={styles.progress}>Analizando {this.state.analysis}%</Text>;
+      }
+    }
+  }
+
+
+
+  //////////////////////////////////////////////////////////////////////////////////////// RENDER DEL COMPONENTE
   render() {
     return (
-
       <View style={styles.container}>
-
-        <View style={styles.listContainer} >
-          <View style={styles.title}>
-            <Text style={styles.titleText}>CARPETAS</Text>
+        <ScrollView>
+          <View style={styles.listContainer} >
+            <View style={styles.title}>
+              <Text style={styles.titleText}>CARPETAS</Text>
+            </View>
+            <TouchableOpacity style={styles.item}
+              activeOpacity={0.2}
+              onPress={this.selectFolder} >
+              <Image source={require('./assets/icono_carpeta.png')} style={styles.itemPic} />
+              <Text style={styles.itemName}>{(this.state.folderName == null ? 'Seleccionar carpeta' : this.state.folderName)}</Text>
+              {this.showProgressFolderFeedback()}
+            </TouchableOpacity>
           </View>
-          <TouchableOpacity style={styles.item}
-            activeOpacity={0.2}
-            onPress={this.openPopUp}
-          >
-            <Image source={require('./assets/icono_carpeta.png')} style={styles.itemPic} />
-            <Text style={styles.itemName}>{(this.state.folder.name == null ? 'Seleccionar carpeta' : this.state.folder.name)}</Text>
-          </TouchableOpacity>
-        </View>
-
-        <View style={styles.listContainer} >
-          <View style={styles.title}>
-            <Text style={styles.titleText}>FILTROS</Text>
-          </View>
-          <FlatList data={this.state.filters}
-            renderItem={this.renderItemFilter}
-            keyExtractor={(item) => item.id.toString()}
-          ></FlatList>
-        </View>
-
-        {this.showBtn()}
-
-        <Dialog
-          onDismiss={() => {
-            this.setState({ defaultAnimationDialog: false });
-          }}
-          width={0.8}
-          height={0.5}
-          rounded
-          visible={this.state.defaultAnimationDialog}
-          dialogStyle={{
-            padding: 0,
-            margin: 0,
-          }}
-        >
-
-          <DialogContent>
-            <ScrollView>
-              <FlatList data={this.state.folders}
-                renderItem={this.renderItemFolders}
-                keyExtractor={(item) => item.id.toString()}
-              ></FlatList>
-            </ScrollView>
-          </DialogContent>
-
-        </Dialog>
-
+          {this.showFilters()}
+          {this.showBtn()}
+          {this.showResults()}
+        </ScrollView>
       </View>
 
     );
@@ -242,16 +216,12 @@ export default class Home extends Component {
 
 
 const styles = StyleSheet.create({
-
   container: {
     flex: 1,
     justifyContent: 'flex-start',
     alignItems: 'stretch',
-    backgroundColor: 'rgba(0, 0, 0, 0)',
-    elevation: 1,
-    marginTop: -70,
+    backgroundColor: '#F5FCFF',
   },
-
   listContainer: {
     width: '90%',
     marginLeft: '5%',
@@ -277,7 +247,33 @@ const styles = StyleSheet.create({
     marginLeft: 5,
     fontWeight: 'bold',
     fontSize: 10,
+    width: '100%',
   },
+  progress: {
+    textAlign: 'right',
+    padding: 3,
+    paddingLeft: 5,
+    paddingRight: 5,
+    borderRadius: 20,
+    backgroundColor: '#F05576',
+    color: 'white',
+    fontSize: 10,
+    marginLeft: '-40%'
+  },
+  progressCompleted: {
+    backgroundColor: '#009e7f'
+  },
+  filterProgress: {
+    textAlign: 'right',
+    padding: 3,
+    paddingLeft: 5,
+    paddingRight: 5,
+    borderRadius: 20,
+    backgroundColor: '#e0e0e0',
+    fontSize: 10,
+    marginLeft: '-25%'
+  },
+
   item: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -285,9 +281,11 @@ const styles = StyleSheet.create({
     borderBottomWidth: 0.3,
     borderColor: '#e0e0e0',
     height: 50,
+
   },
   itemName: {
     marginLeft: 15,
+    width: '100%'
   },
   itemPic: {
     height: 30,
@@ -308,6 +306,7 @@ const styles = StyleSheet.create({
     marginLeft: 15,
     color: 'white',
     fontWeight: 'bold',
+    width: '100%'
   },
   itemFolder: {
     flexDirection: 'row',
@@ -320,7 +319,6 @@ const styles = StyleSheet.create({
     marginTop: 40,
     marginLeft: '15%',
     marginRight: '15%',
+    marginBottom: 40,
   },
-
-
 });
