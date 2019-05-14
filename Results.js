@@ -12,16 +12,8 @@ import Dialog, {
   ScaleAnimation,
 } from 'react-native-popup-dialog';
 import Share from 'react-native-share';
-//import Clarifai from 'clarifai';
 
 var RNFS = require('react-native-fs');
-
-
-/*
-const app = new Clarifai.App({
-  apiKey: '73cdb62bd9594690acc4626aa080c1f0'
-});*/
-
 
 
 export default class Results extends Component {
@@ -29,7 +21,6 @@ export default class Results extends Component {
     super(props);
     this.state = {
       filter: 0,
-      //folder: props.navigation.getParam('folder', -1),
       imgList: [],
       defaultAnimationDialog: false,
       visible: false,
@@ -38,39 +29,6 @@ export default class Results extends Component {
 
 
   componentDidMount = () => {
-
-    //TODO: Switch con el id de filtro que llega i el id del modelo a analizar. 
-
-    //Aqui se intenta coger una imagen guardada en el dispositivo y pasarla a base64
-    //realmente no se consigue porque la libreria espera la imagen usando el FS 
-    /* let img = this.state.img1
-     ImgToBase64.getBase64String(img)
-       .then(base64String => {
-         Alert.alert("img");
- 
-         //Para el caso de las caras
-         app.models.predict(Clarifai.a403429f2ddf4b49b307e318f00e528b, { base64: base64String })
-           .then(res => {
-             Alert.alert('success', JSON.stringify(res.data.concepts));
-             if(res.data.concepts){
-               //TODO: hacer push de la imagen en imgList
-             }
-             else{
-               //la imagen no se añade
-             }
-           })
-           //error de la API 
-           .catch(error => {
-             Alert.alert('error', JSON.stringify(error));
-           })
-       })
-       //error de pasar a base64
-       .catch(err => {
-         Alert.alert('error', JSON.stringify(err));
-       });
- */
-
-
     //Para el prototipo:
     switch (this.state.filter) {
       case 0:

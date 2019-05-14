@@ -12,7 +12,12 @@ import Dialog, {
 import RNFS from 'react-native-fs';
 import DirectoryPickerManager from 'react-native-directory-picker';
 import Results from './Results.js'
+import Clarifai from 'clarifai';
+import AsyncStorage from '@react-native-community/async-storage';
 
+const app = new Clarifai.App({
+  apiKey: '73cdb62bd9594690acc4626aa080c1f0'
+});
 
 
 
@@ -29,6 +34,9 @@ export default class Home extends Component {
     showFilters: false,
     showPics: false,
     analysis: 100,
+    imgList: [],
+    imgResults: [],
+    savedData: [],
   }
 
 
@@ -59,15 +67,122 @@ export default class Home extends Component {
         console.log('DirectoryPickerManager Error: ', response.error);
       }
       else {
-        console.log('Response = ', response);
+        // console.log('Response = ', response);
         this.setState({
-          selectedFolder: response.dirname,
+          selectedFolder: response.path,
           folderName: response.dirname,
           showFilters: true,
         });
+        this.saveAllImages();
       }
     });
   }
+
+
+  //////////////////////////////////////////////////////////////////////////////////////// GUARDAR TODAS LAS IMÁGENES EN ARRAY
+  saveAllImages = () => {
+    RNFS.readDir(this.state.selectedFolder)
+      .then((ficheros) => {
+        if (ficheros.length > 0) {
+          let imgList = [];
+          for (let i = 0; i < ficheros.length; i++) {
+            imgList.push(ficheros[i].path);
+          }
+          this.setState({ imgList });
+          this.loadList();
+        }
+      });
+
+  }
+
+
+
+  //////////////////////////////////////////////////////////////////////////////////////// GUARDAR DATOS
+  async saveList(data) {
+    try {
+      await AsyncStorage.setItem('data', JSON.stringify(data));
+    } catch (e) {
+      alert(e);
+    }
+  }
+
+
+
+  //////////////////////////////////////////////////////////////////////////////////////// CARGAR DATOS
+  async loadList() {
+    const data = await AsyncStorage.getItem('data');
+    const json = await JSON.parse(data);
+    if (data) {
+      this.setState({ savedData: json });
+      console.log('Ya hay datos guardados', this.state.savedData);
+    } else {
+      console.log('No hay datos');
+    }
+
+    this.checkIfImgExist(this.state.imgList);
+  }
+
+
+
+  //////////////////////////////////////////////////////////////////////////////////////// GUARDAR LAS IMÁGENES NUEVAS
+  checkIfImgExist = (imgList) => {
+    const newImg = imgList;
+    if (this.state.savedData != null) {
+      for (let i = 0; i < imgList.length; i++) {
+        for (let j = 0; j < this.state.savedData.length; j++) {
+          if (imgList[i] == this.state.savedData[j].path) {
+            //newImg = imgList.filter(img => img != this.state.savedData[j].path);
+            newImg.splice(i, 1);
+          } else {
+            console.log('la imagen ya está en la bbdd');
+          }
+        }
+      }
+    }
+    if(newImg.length != 0){
+      this.callClarifai(newImg);
+      console.log('Nuevas imágenes', newImg);
+    }else{
+      console.log('No hay imágenes nuevas a enviar')
+    }
+  }
+
+
+
+  imgBase64 = (img) => {
+    RNFS.readFile(img, 'base64').then((content) => {
+      return content;
+    })
+  }
+
+
+  //////////////////////////////////////////////////////////////////////////////////////// CLARIFAI
+  callClarifai = (img) => {
+    const data = this.state.savedData;
+    for (let i = 0; i < img.length; i++) {
+      RNFS.readFile(img[i], 'base64').then(base64 => {
+        app.models.predict(Clarifai.FACE_DETECT_MODEL, { base64 })
+          .then(res => {
+            if (res.outputs) {
+              data.push({ 'path': img[i], 'clarifai': res.outputs });
+              this.saveList(data);
+              console.log('Clarifai resp', data);
+            }
+            else {
+
+            }
+          })
+          //error de la API 
+          .catch(error => {
+            Alert.alert('error', JSON.stringify(error));
+          })
+      })
+
+    }
+    //TODO: llamar a la función cuando se hayan acabado las llamadas a Clarifai
+  
+  }
+
 
 
 
@@ -120,11 +235,11 @@ export default class Home extends Component {
       if (this.state.analysis < 100) {
         btnContent = 'Espere al análisis';
         dis = true;
-      }else {
-        if(this.state.selectedFilter == null){
+      } else {
+        if (this.state.selectedFilter == null) {
           btnContent = 'Selecciona un filtro';
           dis = true;
-        }else{
+        } else {
         }
       }
     }

@@ -7,7 +7,9 @@
     "test": "jest"
   },
   "dependencies": {
+    "@react-native-community/async-storage": "^1.4.0",
     "clarifai": "^2.9.0",
+    "immer": "^3.1.1",
     "react": "16.8.3",
     "react-native": "0.59.4",
     "react-native-directory-picker": "git+https://github.com/lokdevp/react-native-directory-picker.git",
