@@ -33,7 +33,8 @@ export default class Home extends Component {
     selectedFilter: null,
     showFilters: false,
     showPics: false,
-    analysis: 100,
+    analysis: 0,
+    process: null,
     imgList: [],
     imgResults: [],
     savedData: [],
@@ -72,6 +73,7 @@ export default class Home extends Component {
           selectedFolder: response.path,
           folderName: response.dirname,
           showFilters: true,
+          analysis: 0,
         });
         this.saveAllImages();
       }
@@ -131,19 +133,23 @@ export default class Home extends Component {
       for (let i = 0; i < imgList.length; i++) {
         for (let j = 0; j < this.state.savedData.length; j++) {
           if (imgList[i] == this.state.savedData[j].path) {
-            //newImg = imgList.filter(img => img != this.state.savedData[j].path);
-            newImg.splice(i, 1);
+           newImg = newImg.filter(img => img != this.state.savedData[j].path);
+           // newImg.splice(i, 1);
           } else {
-            console.log('la imagen ya está en la bbdd');
+            console.log('La imagen ya está en la bbdd');
           }
         }
       }
     }
+
     if(newImg.length != 0){
       this.callClarifai(newImg);
       console.log('Nuevas imágenes', newImg);
     }else{
-      console.log('No hay imágenes nuevas a enviar')
+      console.log('No hay imágenes nuevas a enviar');
+      this.setState({
+        analysis: 100,
+      });
     }
   }
 
@@ -159,6 +165,9 @@ export default class Home extends Component {
   //////////////////////////////////////////////////////////////////////////////////////// CLARIFAI
   callClarifai = (img) => {
     const data = this.state.savedData;
+    this.setState({
+      process: 0,
+    });
     for (let i = 0; i < img.length; i++) {
       RNFS.readFile(img[i], 'base64').then(base64 => {
         app.models.predict(Clarifai.FACE_DETECT_MODEL, { base64 })
@@ -167,6 +176,11 @@ export default class Home extends Component {
               data.push({ 'path': img[i], 'clarifai': res.outputs });
               this.saveList(data);
               console.log('Clarifai resp', data);
+              console.log(this.state.process);
+              this.updateProcess(img);
+              this.setState({
+                process: this.state.process+1,
+              });
             }
             else {
 
@@ -177,10 +191,17 @@ export default class Home extends Component {
             Alert.alert('error', JSON.stringify(error));
           })
       })
-
     }
-    //TODO: llamar a la función cuando se hayan acabado las llamadas a Clarifai
-  
+  }
+
+
+  updateProcess = (img) => {
+    let n = Number((100*this.state.process)/(img.length-1));
+    this.setState({
+      analysis: n,
+    });
+    console.log(this.state.analysis);
+
   }
 
 
