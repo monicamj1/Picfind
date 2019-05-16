@@ -226,9 +226,7 @@ export default class Home extends Component {
     const data = await AsyncStorage.getItem('data');
     const json = await JSON.parse(data);
     if (data) {
-      this.setState({ savedData: json });
-      //console.log('Data',this.state.savedData)
-      
+      this.setState({ savedData: json });   
     } else {
       console.log('No hay datos');
     }
@@ -239,8 +237,7 @@ export default class Home extends Component {
   //////////////////////////////////////////////////////////////////////////////////////// CONTADOR PARA CADA FILTRO
   countItems = () => {
     let images = [];
-    console.log('Cara', this.state.savedData[9].clarifai[0].data.regions)
-    console.log('Cara', this.state.savedData[0].clarifai[0].data.regions)
+
     images = this.state.imgList.filter(img => {
       for (let j = 0; j < this.state.savedData.length; j++) {
         if (img === this.state.savedData[j].path) {
@@ -336,9 +333,7 @@ export default class Home extends Component {
       showPics: false,
       imgResults: [],
     })
-
     let filtro = this.state.filterList.filter(f => f.selected === false);
-    //this.loadListOnly();
     let images = [];
     console.log('Filtro', filtro[0].id);
     switch (filtro[0].id) {
@@ -431,9 +426,10 @@ export default class Home extends Component {
             numColumns={4}
             renderItem={this.renderItem}
             keyExtractor={(item) => item.id} />
-          {this.showTools()}
+          
           {this.showDialog()}
         </View>
+        
       );
     }
   }
@@ -515,16 +511,18 @@ export default class Home extends Component {
       RNFS.unlink(path)
         .then(() => {
           console.log('FILE DELETED');
+          this.setState(prevState => ({
+            savedData: prevState.savedData.filter((image => (image.path !== selected[i].src))),
+            imgList: prevState.imgList.filter((image => (image !== selected[i].src))),
+          }));
+          this.saveList(this.state.savedData);
+         this.clickBtn();
         })
         .catch((err) => {
           console.log(err.message);
         });
-
-      this.setState(prevState => ({
-        savedData: prevState.savedData.filter((image) => (image.path !== selected[i].id)),
-      }));
     }
-    this.saveList(this.state.savedData);
+    
     //close dialog
     this.setState({ defaultAnimationDialog: false });
   }
@@ -552,8 +550,7 @@ export default class Home extends Component {
     let selected = this.state.imgResults.filter(image => image.selected == false);
     for (let i = 0; i < selected.length; i++) {
       let shareImageBase64 = {
-        title: "React Native",
-        url: 'file://' + selected[i].src,
+        url: 'file://'+selected[i].src,
       };
       console.log(shareImageBase64);
       Share.open(shareImageBase64);
@@ -633,7 +630,9 @@ export default class Home extends Component {
           {this.showFilters()}
           {this.showBtn()}
           {this.showResults()}
+         
         </ScrollView>
+        {this.showTools()}
       </View>
 
     );
