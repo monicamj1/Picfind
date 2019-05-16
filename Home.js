@@ -11,12 +11,12 @@ import Dialog, {
 } from 'react-native-popup-dialog';
 import RNFS from 'react-native-fs';
 import DirectoryPickerManager from 'react-native-directory-picker';
-import Results from './Results.js'
 import Clarifai from 'clarifai';
 import AsyncStorage from '@react-native-community/async-storage';
 import GridList from 'react-native-grid-list';
 import Icon from 'react-native-vector-icons/FontAwesome';
 import Share from 'react-native-share';
+import { produce } from 'immer';
 
 const app = new Clarifai.App({
   apiKey: '73cdb62bd9594690acc4626aa080c1f0'
@@ -28,8 +28,9 @@ const app = new Clarifai.App({
 export default class Home extends Component {
   state = {
     filterList: [
-      { id: 0, name: "Caras", results: 28, selected: true },
-      { id: 1, name: "Borrosas", results: 13, selected: true },
+      { id: 0, name: "Todas", results: 0, selected: true },
+      { id: 1, name: "Caras", results: 0, selected: true },
+      { id: 2, name: "Sin clasificar", results: 0, selected: true },
     ],
     folderName: null,
     selectedFolder: null,
@@ -49,7 +50,7 @@ export default class Home extends Component {
 
   ///////////////////////////////////////////////////////////////////////////////////////// BARRA DE NAVEGACIÓN SUPERIOR
   static navigationOptions = {
-    title: 'Picfind',
+    title: 'Facefind',
     headerTitleStyle: {
       textAlign: "center",
       flex: 1,
@@ -84,8 +85,11 @@ export default class Home extends Component {
             showFilters: true,
             analysis: 0,
             showPics: false,
+            imgResults: []
           });
           this.saveAllImages();
+
+
         }
       }
     });
@@ -104,6 +108,7 @@ export default class Home extends Component {
           }
           this.setState({ imgList });
           this.loadList();
+        
         }
       });
 
@@ -118,6 +123,8 @@ export default class Home extends Component {
     } catch (e) {
       alert(e);
     }
+
+    this.loadListOnly();
   }
 
 
@@ -133,27 +140,25 @@ export default class Home extends Component {
       console.log('No hay datos');
     }
 
-    this.checkIfImgExist(this.state.imgList);
+    this.checkIfImgExist();
   }
 
 
 
   //////////////////////////////////////////////////////////////////////////////////////// GUARDAR LAS IMÁGENES NUEVAS
-  checkIfImgExist = (imgList) => {
-    let newImg = imgList;
+  checkIfImgExist = () => {
+    let { imgList: newImg } = this.state;
     if (this.state.savedData != null) {
-      for (let i = 0; i < imgList.length; i++) {
+      newImg = newImg.filter(img => {
         for (let j = 0; j < this.state.savedData.length; j++) {
-          if (imgList[i] == this.state.savedData[j].path) {
-            newImg = newImg.filter(img => img != this.state.savedData[j].path);
-            //TODO: ARREGLAR ESTO
-          } else {
-            console.log('La imagen ya está en la bbdd');
+          if (img === this.state.savedData[j].path) {
+            return false;
           }
         }
-      }
+        return true;
+      })
     }
-    if (newImg.length != 0) {
+    if (newImg.length > 0) {
       this.callClarifai(newImg);
       console.log('Nuevas imágenes', newImg);
     } else {
@@ -161,6 +166,7 @@ export default class Home extends Component {
       this.setState({
         analysis: 100,
       });
+      this.loadListOnly();
     }
 
   }
@@ -177,9 +183,7 @@ export default class Home extends Component {
   //////////////////////////////////////////////////////////////////////////////////////// CLARIFAI
   callClarifai = (img) => {
     const data = this.state.savedData;
-    this.setState({
-      process: 0,
-    });
+    this.setState({ process: 0 });
     for (let i = 0; i < img.length; i++) {
       RNFS.readFile(img[i], 'base64').then(base64 => {
         app.models.predict(Clarifai.FACE_DETECT_MODEL, { base64 })
@@ -188,13 +192,14 @@ export default class Home extends Component {
               data.push({ 'path': img[i], 'clarifai': res.outputs });
               this.saveList(data);
               console.log('Clarifai resp', data);
-              this.setState({
-                process: this.state.process + 1,
-              });
+              this.setState(prev => ({
+                process: prev.process + 1,
+              }));
               this.updateProcess(img);
+
             }
             else {
-
+              console.log("No hay outputs para :", img[i]);
             }
           })
           //error de la API 
@@ -213,14 +218,53 @@ export default class Home extends Component {
     this.setState({
       analysis: n,
     });
+  }
+
+
+  //////////////////////////////////////////////////////////////////////////////////////// PARA ACTUALIZAR THIS.STATE.SAVEDDATA
+  async loadListOnly() {
+    const data = await AsyncStorage.getItem('data');
+    const json = await JSON.parse(data);
+    if (data) {
+      this.setState({ savedData: json });
+      //console.log('Data',this.state.savedData)
+      
+    } else {
+      console.log('No hay datos');
+    }
     this.countItems();
   }
 
 
   //////////////////////////////////////////////////////////////////////////////////////// CONTADOR PARA CADA FILTRO
   countItems = () => {
-    //TODO: Un switch para cada filtro en el que se cuenten las imágenes que hay en la bbdd para cada uno
-    //this.loadListOnly();
+    let images = [];
+    console.log('Cara', this.state.savedData[9].clarifai[0].data.regions)
+    console.log('Cara', this.state.savedData[0].clarifai[0].data.regions)
+    images = this.state.imgList.filter(img => {
+      for (let j = 0; j < this.state.savedData.length; j++) {
+        if (img === this.state.savedData[j].path) {
+          if (this.state.savedData[j].clarifai[0].data.regions !== undefined) { //Si no es nada  
+            return true;
+          }
+        }
+      }
+      return false;
+    })
+    this.setState(produce(draft => {
+      draft.filterList.forEach(filtro => {
+        if (filtro.id === 0) {
+          filtro.results = this.state.imgList.length;
+        }
+        if (filtro.id === 1) {
+          filtro.results = images.length;
+        }
+        if (filtro.id === 2) {
+          filtro.results = this.state.imgList.length - images.length;
+        }
+      })
+    }));
+    
 
   }
 
@@ -234,7 +278,8 @@ export default class Home extends Component {
     >
       <Image source={(item.selected ? require('./assets/icono_filtro.png') : require('./assets/icono_filtro_sel.png'))} style={styles.itemPic} />
       <Text style={(item.selected ? styles.itemName : styles.itemNameSelected)}>{item.name}</Text>
-      {this.showProgressFilterFeedback(item.id)}
+
+      <Text style={styles.filterProgress}>{item.results}</Text>
     </TouchableOpacity>
   )
 
@@ -269,13 +314,6 @@ export default class Home extends Component {
 
 
 
-  //////////////////////////////////////////////////////////////////////////////////////// PROGRESO DE LOS RESULTADOS PARA CADA FILTRO
-  showProgressFilterFeedback = (id) => {
-    return <Text style={styles.filterProgress}>{this.state.filterList[id].results}</Text>;
-  }
-
-
-
   ///////////////////////////////////////////////////////////////////////////////////// PROGRESO DEL ANÁLISIS DE LA CARPETA
   showProgressFolderFeedback = () => {
     if (this.state.selectedFolder != null) {
@@ -288,48 +326,62 @@ export default class Home extends Component {
   }
 
 
-  /*
-      { id: 0, name: "Caras", results: 28, selected: true },
-      { id: 1, name: "Borrosas", results: 13, selected: true },
-  */
 
-  async loadListOnly() {
-    const data = await AsyncStorage.getItem('data');
-    const json = await JSON.parse(data);
-    if (data) {
-      this.setState({ savedData: json });
-    }
-
-  }
+  
 
   //////////////////////////////////////////////////////////////////////////////////////// ONCLICK DEL BOTÓN DE MOSTRAR RESULTADOS
-  clickBtn = (imgList) => {
-    let filtro = this.state.filterList.filter(f => f.selected == false);
-    this.loadListOnly();
-    let images = [];
-    //const json;
-    for (let i = 0; i < imgList.length; i++) {
-      for (let j = 0; j < this.state.savedData.length; j++) {
-        if (imgList[i] == this.state.savedData[j].path) {
-          switch (filtro.id) {
-            case 0:
-              //camino en el json// json = ;
-              break;
-            case 1:
-              //camino en el json// json = ;
-              break;
-          }
-          if (this.state.savedData[j].clarifai != null) {
-            images.push({ 'id': imgList[i], 'src': imgList[i], 'selected': true });
-          }
-        }
-
-      }
-    }
+  clickBtn = () => {
+    //console.log('Pulsar boton', this.state.filterList);
     this.setState({
-      showPics: true,
-      imgResults: images,
+      showPics: false,
+      imgResults: [],
     })
+
+    let filtro = this.state.filterList.filter(f => f.selected === false);
+    //this.loadListOnly();
+    let images = [];
+    console.log('Filtro', filtro[0].id);
+    switch (filtro[0].id) {
+      case 0: //Todas
+        this.state.imgList.forEach(img => {
+          images.push({ 'id': img, 'src': img, 'selected': true });
+        })
+        break;
+      case 1: //Caras
+        this.state.imgList.forEach(img => {
+          for (let j = 0; j < this.state.savedData.length; j++) {
+            if (img === this.state.savedData[j].path) {
+              if (this.state.savedData[j].clarifai[0].data.regions !== undefined) { //Si es cara  
+                images.push({ 'id': img, 'src': img, 'selected': true });
+              }
+            }
+          }
+        })
+        break;
+      case 2: //El resto
+        this.state.imgList.forEach(img => {
+          for (let j = 0; j < this.state.savedData.length; j++) {
+            if (img === this.state.savedData[j].path) {
+              if (this.state.savedData[j].clarifai[0].data.regions === undefined) { //Si es no es nada  
+                images.push({ 'id': img, 'src': img, 'selected': true });
+              }
+            }
+          }
+        })
+        break;
+    }
+
+    console.log('Images', images);
+    if(images.length > 0){
+      this.setState({
+        showPics: true,
+        imgResults: images,
+      })
+    }
+    else{
+      ToastAndroid.show('No hay resultados para mostrar.', ToastAndroid.SHORT);
+    }
+    
     //TODO: Scroll a los resultados
   }
 
@@ -368,7 +420,7 @@ export default class Home extends Component {
 
 
   //////////////////////////////////////////////////////////////////////////////////////// RENDERIZAR COMPONENTE CON LOS RESULTADOS
-  showResults = () => {
+  showResults = () => { 
     if (this.state.showPics == true) {
       return (
         <View style={styles.rcontainer}>
@@ -499,12 +551,12 @@ export default class Home extends Component {
   onOpen = () => {
     let selected = this.state.imgResults.filter(image => image.selected == false);
     for (let i = 0; i < selected.length; i++) {
-        let shareImageBase64 = {
-          title: "React Native",
-          url: 'file://'+selected[i].src,
-        };
-        console.log(shareImageBase64);
-        Share.open(shareImageBase64);
+      let shareImageBase64 = {
+        title: "React Native",
+        url: 'file://' + selected[i].src,
+      };
+      console.log(shareImageBase64);
+      Share.open(shareImageBase64);
 
     }
   }
