@@ -28,7 +28,6 @@ export default class Home extends Component {
     showFilters: false,
     showPics: false,
     analysis: 0,
-    process: null,
     imgList: [],
     imgResults: [],
     savedData: [],
@@ -147,7 +146,7 @@ export default class Home extends Component {
   //////////////////////////////////////////////////////////////////////////////////////// CLARIFAI
   callClarifai = (img) => {
     const data = this.state.savedData;
-    this.setState({ process: 0 });
+    let p = 0;
     for (let i = 0; i < img.length; i++) {
       RNFS.readFile(img[i], 'base64').then(base64 => {
         app.models.predict(Clarifai.FACE_DETECT_MODEL, { base64 })
@@ -156,29 +155,20 @@ export default class Home extends Component {
               data.push({ 'path': img[i], 'clarifai': res.outputs });
               this.saveList(data);
               console.log('Respuesta Clarifai', data);
-              this.setState(prev => ({
-                process: prev.process + 1,
-              }));
-              this.updateProcess(img);
+              p++;
+              this.setState({
+                analysis: Math.floor(Number((100 * p) / (img.length))),
+              });
             }
             else {
               console.log("No hay outputs para :", img[i]);
             }
           })
-          //error de la API 
           .catch(error => {
             Alert.alert('error', JSON.stringify(error));
           })
       })
     }
-  }
-
-  //////////////////////////////////////////////////////////////////////////////////////// UPDATE DEL PORCENTAJE DE IMÁGENES PROCESADAS
-  updateProcess = (img) => {
-    let n = Math.floor(Number((100 * this.state.process) / (img.length)));
-    this.setState({
-      analysis: n,
-    });
   }
 
   //////////////////////////////////////////////////////////////////////////////////////// CONTADOR PARA CADA FILTRO
@@ -315,7 +305,7 @@ export default class Home extends Component {
           </View>
           <GridList data={this.state.imgResults}
             numColumns={4}
-            renderItem={this.renderItem}
+            renderItem={this.renderItemImg}
             keyExtractor={(item) => item.id} />
           {this.showDialog()}
         </View>
@@ -423,7 +413,7 @@ export default class Home extends Component {
   }
 
   //////////////////////////////////////////////////////////////////////////////////////// RENDER DE CADA IMAGEN
-  renderItem = ({ item }) => (
+  renderItemImg = ({ item }) => (
     <TouchableOpacity
       style={styles.image}
       onPress={() => this.onClickImg(item.id)} >
