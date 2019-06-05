@@ -13,6 +13,7 @@
     "react": "16.8.3",
     "react-native": "0.59.4",
     "react-native-directory-picker": "git+https://github.com/lokdevp/react-native-directory-picker.git",
+    "react-native-fetch-blob": "^0.10.8",
     "react-native-fs": "^2.13.3",
     "react-native-gesture-handler": "^1.1.0",
     "react-native-grid-list": "^1.0.9",

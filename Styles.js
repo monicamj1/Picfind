@@ -154,7 +154,7 @@ export default StyleSheet.create({
       marginTop: -60,
       alignItems: 'center',
       justifyContent: 'space-around',
-      backgroundColor: '#b2b2b299',
+      backgroundColor: '#ffffff99',
       padding: 5,
     },
     optionButtons: {

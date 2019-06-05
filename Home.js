@@ -15,6 +15,13 @@ const app = new Clarifai.App({
   apiKey: '73cdb62bd9594690acc4626aa080c1f0'
 });
 
+/* Limpieza de código
+- Se han eliminado funciones que eran casi duplicadas y se han optimizado varios procesos. -300 líneas de código.
+- Se han separado los estilos para una mejor organización.
+- Se ha intentado cambiar el filterList del estado a como recomendó Pau, pero no hemos conseguido adaptar ese cambio
+a todas las partes del código por lo que se ha vuelto a como estaba originalmente para que la app al menos funcione.
+*/
+
 export default class Home extends Component {
   state = {
     filterList: [
@@ -214,7 +221,7 @@ export default class Home extends Component {
   changeSelected = (id) => () => {
     this.setState(prevState => ({
       filterList: prevState.filterList.map((filter, i) => (i === id
-        ? { ...filter, selected: !filter.selected }
+        ? (filter.selected === true ? { ...filter,  selected: filter.selected } : { ...filter,  selected: !filter.selected } )
         : { ...filter, selected: false })),
       selectedFilter: id,
     }))
@@ -239,7 +246,7 @@ export default class Home extends Component {
   ///////////////////////////////////////////////////////////////////////////////////// PROGRESO DEL ANÁLISIS DE LA CARPETA
   showProgressFolderFeedback = () => {
     if (this.state.selectedFolder != null) {
-      if (this.state.analysis == 100) { 
+      if (this.state.analysis == 100) {
         return <Text style={[styles.progress, styles.progressCompleted]}>Analizado</Text>;
       } else {
         return <Text style={styles.progress}>Analizando {this.state.analysis}%</Text>;
@@ -249,7 +256,7 @@ export default class Home extends Component {
 
   //////////////////////////////////////////////////////////////////////////////////////// SE MUESTRAN LAS IMÁGENES SEGÚN EL FILTRO
   setResults = (id) => {
-    if (this.state.analysis === 100 && id !== null) {
+    if (this.state.analysis === 100) {
       this.setState({
         showPics: false,
         imgResults: [],
@@ -263,24 +270,24 @@ export default class Home extends Component {
           break;
         case 1: //Caras
           this.state.imgList.forEach(img => {
-            for (let j = 0; j < this.state.savedData.length; j++) {
-              if (img === this.state.savedData[j].path) {
-                if (this.state.savedData[j].clarifai[0].data.regions !== undefined) { //Si es cara  
+            this.state.savedData.forEach(data => {
+              if (img === data.path) {
+                if (data.clarifai[0].data.regions !== undefined) { //Si es cara  
                   images.push({ id: img, src: img, selected: false });
                 }
               }
-            }
+            })
           })
           break;
         case 2: //El resto
           this.state.imgList.forEach(img => {
-            for (let j = 0; j < this.state.savedData.length; j++) {
-              if (img === this.state.savedData[j].path) {
-                if (this.state.savedData[j].clarifai[0].data.regions === undefined) { //Si NO cara  
+            this.state.savedData.forEach(data => {
+              if (img === data.path) {
+                if (data.clarifai[0].data.regions === undefined) { //Si es cara  
                   images.push({ id: img, src: img, selected: false });
                 }
               }
-            }
+            })
           })
           break;
       }
@@ -367,7 +374,7 @@ export default class Home extends Component {
   //////////////////////////////////////////////////////////////////////////////////////// ONCLICK UNA IMAGEN, SE SELECCIONA
   onClickImg = (id) => {
     this.setState(prevState => ({
-      imgResults: prevState.imgResults.map((image, i) => (image.id === id
+      imgResults: prevState.imgResults.map((image) => (image.id === id
         ? { ...image, selected: !image.selected }
         : { ...image }))
     }));
@@ -383,7 +390,7 @@ export default class Home extends Component {
             name="trash"
             onPress={() => {
               this.setState({ defaultAnimationDialog: true });
-            }} 
+            }}
             color="white" />
         </View>
       </View>
@@ -394,7 +401,7 @@ export default class Home extends Component {
   clickDelete = () => {
     let selected = this.state.imgResults.filter(image => image.selected);
     for (let i = 0; i < selected.length; i++) {
-      var path = 'file://' + selected[i].src;
+      var path = selected[i].src;
       RNFS.unlink(path)
         .then(() => {
           console.log('FILE DELETED');
